@@ -1,0 +1,9 @@
+ttkbootstrap
+pandas
+openpyxl
+pywin32
+pyzbar
+pillow
+pdf2image
+qrcode[pil]
+pyinstaller
