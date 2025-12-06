@@ -14,9 +14,6 @@ class LectorQRTab(ttk.Frame):
         # Variables
         # Detectar Poppler (Bundled vs Local)
         bundled_poppler = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "poppler", "Library", "bin")
-        # En PyInstaller, _internal/poppler/Library/bin
-        # La ruta relativa desde este archivo (modulos/lector_qr/gui.py) es ../../poppler...
-        # Pero en dist, modulos/lector_qr está dentro de _internal.
         
         # Mejor estrategia: buscar en la raíz del ejecutable/script
         base_path = os.getcwd()
@@ -24,8 +21,8 @@ class LectorQRTab(ttk.Frame):
             base_path = sys._MEIPASS
             
         possible_paths = [
-            os.path.join(base_path, "poppler", "Library", "bin"), # Bundled
-            r"C:\poppler\Library\bin" # Default User
+            os.path.join(base_path, "poppler", "Library", "bin"),
+            r"C:\poppler\Library\bin"
         ]
         
         default_poppler = r"C:\poppler\Library\bin"
@@ -88,7 +85,7 @@ class LectorQRTab(ttk.Frame):
         
         self.lbl_stats = ttk.Label(
             stats_frame, 
-            text="Procesados: 0 | Exitosos: 0 | Fallidos: 0",
+            text="Procesados: 0 | Exitosos: 0 | Fallidos: 0 | Duplicados: 0",
             font=("Segoe UI", 10, "bold")
         )
         self.lbl_stats.pack()
@@ -108,10 +105,10 @@ class LectorQRTab(ttk.Frame):
         self.log_text.pack(fill=BOTH, expand=YES)
         
         # Tags de colores
-        self.log_text.tag_config("INFO", foreground="#007bff")     # Azul
-        self.log_text.tag_config("SUCCESS", foreground="#28a745")  # Verde
-        self.log_text.tag_config("WARNING", foreground="#ffc107")  # Amarillo
-        self.log_text.tag_config("ERROR", foreground="#dc3545")    # Rojo
+        self.log_text.tag_config("INFO", foreground="#007bff")
+        self.log_text.tag_config("SUCCESS", foreground="#28a745")
+        self.log_text.tag_config("WARNING", foreground="#ffc107")
+        self.log_text.tag_config("ERROR", foreground="#dc3545")
 
     def crear_selector(self, parent, label, variable, row):
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky=W, pady=2)
@@ -129,7 +126,7 @@ class LectorQRTab(ttk.Frame):
 
     def limpiar_log(self):
         self.log_text.delete(1.0, tk.END)
-        self.lbl_stats.config(text="Procesados: 0 | Exitosos: 0 | Fallidos: 0")
+        self.lbl_stats.config(text="Procesados: 0 | Exitosos: 0 | Fallidos: 0 | Duplicados: 0")
 
     def iniciar(self):
         if self.procesando: return
@@ -165,7 +162,7 @@ class LectorQRTab(ttk.Frame):
         )
         
         # Actualizar UI final
-        self.root.after(0, lambda: self.finalizar(stats))
+        self.after(0, lambda: self.finalizar(stats))
 
     def finalizar(self, stats):
         self.procesando = False
@@ -175,7 +172,7 @@ class LectorQRTab(ttk.Frame):
         self.lbl_progreso.config(text="Listo")
         
         self.lbl_stats.config(
-            text=f"Procesados: {stats['procesados']} | Exitosos: {stats['exitosos']} | Fallidos: {stats['fallidos']}"
+            text=f"Procesados: {stats['procesados']} | Exitosos: {stats['exitosos']} | Fallidos: {stats['fallidos']} | Duplicados: {stats.get('duplicados', 0)}"
         )
         
         if stats['fallidos'] == 0 and stats['procesados'] > 0:
