@@ -51,6 +51,30 @@ class LectorQRTab(ttk.Frame):
         self.crear_selector(config_frame, "Sin QR:", self.carpeta_error, 2)
         self.crear_selector(config_frame, "Poppler:", self.poppler_path, 3)
         
+        # --- Manejo de Duplicados ---
+        dup_frame = ttk.Labelframe(self, text="Manejo de Duplicados", padding=10)
+        dup_frame.pack(fill=X, pady=5)
+        
+        ttk.Label(dup_frame, text="Política:").pack(side=LEFT, padx=5)
+        
+        self.politica_duplicados = tk.StringVar(value="renombrar")
+        politica_combo = ttk.Combobox(
+            dup_frame,
+            textvariable=self.politica_duplicados,
+            values=["renombrar", "preguntar", "comparar"],
+            state="readonly",
+            width=20
+        )
+        politica_combo.pack(side=LEFT, padx=5)
+        
+        # Tooltips informativos
+        ttk.Label(
+            dup_frame,
+            text="[i] renombrar=sufijo | preguntar=diálogo | comparar=MD5",
+            font=("Segoe UI", 8),
+            foreground="gray"
+        ).pack(side=LEFT, padx=5)
+        
         # --- Botones ---
         btn_frame = ttk.Frame(self)
         btn_frame.pack(fill=X, pady=10)
@@ -85,7 +109,7 @@ class LectorQRTab(ttk.Frame):
         
         self.lbl_stats = ttk.Label(
             stats_frame, 
-            text="Procesados: 0 | Exitosos: 0 | Fallidos: 0 | Duplicados: 0",
+            text="Procesados: 0 | Exitosos: 0 | Fallidos: 0 | Duplicados: 0 | Saltados: 0",
             font=("Segoe UI", 10, "bold")
         )
         self.lbl_stats.pack()
@@ -126,7 +150,94 @@ class LectorQRTab(ttk.Frame):
 
     def limpiar_log(self):
         self.log_text.delete(1.0, tk.END)
-        self.lbl_stats.config(text="Procesados: 0 | Exitosos: 0 | Fallidos: 0 | Duplicados: 0")
+        self.lbl_stats.config(text="Procesados: 0 | Exitosos: 0 | Fallidos: 0 | Duplicados: 0 | Saltados: 0")
+
+    def callback_pregunta_duplicado(self, nombre_archivo, ruta_existente):
+        """
+        Muestra diálogo para preguntar al usuario qué hacer con duplicado.
+        
+        Args:
+            nombre_archivo: Nombre del archivo duplicado
+           ruta_existente: Ruta del archivo ya existente
+            
+        Returns:
+            str: "sobrescribir", "renombrar", o "saltar"
+        """
+        # Crear ventana de diálogo personalizada
+        dialog = tk.Toplevel(self)
+        dialog.title("Archivo Duplicado Detectado")
+        dialog.geometry("450x220")
+        dialog.resizable(False, False)
+        dialog.grab_set()  # Modal
+        
+        # Centrar ventana
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (220 // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Mensaje
+        msg_frame = ttk.Frame(dialog, padding=20)
+        msg_frame.pack(fill=BOTH, expand=YES)
+        
+        ttk.Label(
+            msg_frame,
+            text="[!] El archivo ya existe:",
+            font=("Segoe UI", 12, "bold")
+        ).pack(pady=5)
+        
+        ttk.Label(
+            msg_frame,
+            text=nombre_archivo,
+            font=("Segoe UI", 10),
+            foreground="blue"
+        ).pack(pady=5)
+        
+        ttk.Label(
+            msg_frame,
+            text="¿Qué deseas hacer?",
+            font=("Segoe UI", 10)
+        ).pack(pady=10)
+        
+        # Variable para resultado
+        resultado = tk.StringVar(value="renombrar")
+        
+        def seleccionar(valor):
+            resultado.set(valor)
+            dialog.destroy()
+        
+        # Botones
+        btn_frame = ttk.Frame(msg_frame)
+        btn_frame.pack(pady=10)
+        
+        ttk.Button(
+            btn_frame,
+            text="Sobrescribir",
+            command=lambda: seleccionar("sobrescribir"),
+            bootstyle="danger",
+            width=12
+        ).pack(side=LEFT, padx=5)
+        
+        ttk.Button(
+            btn_frame,
+            text="Renombrar",
+            command=lambda: seleccionar("renombrar"),
+            bootstyle="primary",
+            width=12
+        ).pack(side=LEFT, padx=5)
+        
+        ttk.Button(
+            btn_frame,
+            text="Saltar",
+            command=lambda: seleccionar("saltar"),
+            bootstyle="secondary",
+            width=12
+        ).pack(side=LEFT, padx=5)
+        
+        # Esperar respuesta
+        dialog.wait_window()
+        
+        return resultado.get()
 
     def iniciar(self):
         if self.procesando: return
@@ -139,6 +250,16 @@ class LectorQRTab(ttk.Frame):
         self.btn_iniciar.config(state=DISABLED)
         self.btn_detener.config(state=NORMAL)
         self.limpiar_log()
+        
+        # Crear motor con política configurada
+        politica = self.politica_duplicados.get()
+        callback_pregunta = self.callback_pregunta_duplicado if politica == "preguntar" else None
+        
+        self.motor = MotorQR(
+            self.log_callback,
+            politica_duplicados=politica,
+            callback_pregunta=callback_pregunta
+        )
         
         Thread(target=self.proceso_thread, daemon=True).start()
 
@@ -172,7 +293,11 @@ class LectorQRTab(ttk.Frame):
         self.lbl_progreso.config(text="Listo")
         
         self.lbl_stats.config(
-            text=f"Procesados: {stats['procesados']} | Exitosos: {stats['exitosos']} | Fallidos: {stats['fallidos']} | Duplicados: {stats.get('duplicados', 0)}"
+            text=f"Procesados: {stats['procesados']} | "
+                 f"Exitosos: {stats['exitosos']} | "
+                 f"Fallidos: {stats['fallidos']} | "
+                 f"Duplicados: {stats.get('duplicados', 0)} | "
+                 f"Saltados: {stats.get('saltados', 0)}"
         )
         
         if stats['fallidos'] == 0 and stats['procesados'] > 0:

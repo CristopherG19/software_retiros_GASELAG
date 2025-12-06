@@ -30,15 +30,29 @@ class ImageProcessor(BaseProcessor):
             if texto_qr:
                 nombre_limpio = "".join([c for c in texto_qr if c.isalnum() or c in " -_"])
                 nuevo_nombre = f"{nombre_limpio}{ext}"
-                ruta_final = self._obtener_ruta_unica(salida, nuevo_nombre)
+                ruta_final, accion = self._obtener_ruta_unica(salida, nuevo_nombre, ruta_img)
+                
+                if ruta_final is None:
+                    self.stats["saltados"] += 1
+                    return
                 
                 shutil.copy2(ruta_img, ruta_final)
-                self.log(f"  {os.path.basename(ruta_img)} -> {os.path.basename(ruta_final)}", "SUCCESS")
+                
+                if accion == "sobrescrito":
+                    self.log(f"  {os.path.basename(ruta_img)} -> [SOBRESCRITO] {os.path.basename(ruta_final)}", "WARNING")
+                else:
+                    self.log(f"  {os.path.basename(ruta_img)} -> {os.path.basename(ruta_final)}", "SUCCESS")
+                
                 self.stats["exitosos"] += 1
             else:
-                ruta_final = self._obtener_ruta_unica(error, os.path.basename(ruta_img))
+                ruta_final, accion = self._obtener_ruta_unica(error, os.path.basename(ruta_img), ruta_img)
+                
+                if ruta_final is None:
+                    self.stats["saltados"] += 1
+                    return
+                
                 shutil.copy2(ruta_img, ruta_final)
-                self.log(f" {os.path.basename(ruta_img)} -> Sin QR", "ERROR")
+                self.log(f"  {os.path.basename(ruta_img)} -> Sin QR", "ERROR")
                 self.stats["fallidos"] += 1
                 
         except Exception as e:

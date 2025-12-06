@@ -59,14 +59,30 @@ class PDFProcessor(BaseProcessor):
         if texto_qr:
             nombre_limpio = "".join([c for c in texto_qr if c.isalnum() or c in " -_"])
             nuevo_nombre = f"{nombre_limpio}.pdf"
-            ruta_final = self._obtener_ruta_unica(salida, nuevo_nombre)
+            ruta_final, accion = self._obtener_ruta_unica(salida, nuevo_nombre, ruta_pdf)
+            
+            # Si es None, saltar archivo
+            if ruta_final is None:
+                self.stats["saltados"] += 1
+                return
             
             # COPIAR EL PDF ORIGINAL (preserva calidad)
             shutil.copy2(ruta_pdf, ruta_final)
-            self.log(f"  {os.path.basename(ruta_pdf)} -> {os.path.basename(ruta_final)}", "SUCCESS")
+            
+            # Log diferenciado según acción
+            if accion == "sobrescrito":
+                self.log(f"  {os.path.basename(ruta_pdf)} -> [SOBRESCRITO] {os.path.basename(ruta_final)}", "WARNING")
+            else:
+                self.log(f"  {os.path.basename(ruta_pdf)} -> {os.path.basename(ruta_final)}", "SUCCESS")
+            
             self.stats["exitosos"] += 1
         else:
-            ruta_final = self._obtener_ruta_unica(error, os.path.basename(ruta_pdf))
+            ruta_final, accion = self._obtener_ruta_unica(error, os.path.basename(ruta_pdf), ruta_pdf)
+            
+            if ruta_final is None:
+                self.stats["saltados"] += 1
+                return
+                
             shutil.copy2(ruta_pdf, ruta_final)
             self.log(f"  {os.path.basename(ruta_pdf)} -> Sin QR", "ERROR")
             self.stats["fallidos"] += 1
@@ -105,15 +121,29 @@ class PDFProcessor(BaseProcessor):
                 if texto_qr:
                     nombre_limpio = "".join([c for c in texto_qr if c.isalnum() or c in " -_"])
                     nuevo_nombre = f"{nombre_limpio}.pdf"
-                    ruta_final = self._obtener_ruta_unica(salida, nuevo_nombre)
+                    # Para multipágina no comparamos contenido (son imágenes convertidas)
+                    ruta_final, accion = self._obtener_ruta_unica(salida, nuevo_nombre)
+                    
+                    if ruta_final is None:
+                        self.stats["saltados"] += 1
+                        continue
                     
                     # Para multipágina, guardar imagen convertida
                     imagen.save(ruta_final, "PDF", resolution=100.0, save_all=True)
-                    self.log(f"  Pág {num_pagina} -> {os.path.basename(ruta_final)}", "SUCCESS")
+                    
+                    if accion == "sobrescrito":
+                        self.log(f"  Pág {num_pagina} -> [SOBRESCRITO] {os.path.basename(ruta_final)}", "WARNING")
+                    else:
+                        self.log(f"  Pág {num_pagina} -> {os.path.basename(ruta_final)}", "SUCCESS")
+                    
                     self.stats["exitosos"] += 1
                 else:
                     nombre_error = f"{nombre_base}_pag{num_pagina}.pdf"
-                    ruta_final = self._obtener_ruta_unica(error, nombre_error)
+                    ruta_final, accion = self._obtener_ruta_unica(error, nombre_error)
+                    
+                    if ruta_final is None:
+                        self.stats["saltados"] += 1
+                        continue
                     
                     imagen.save(ruta_final, "PDF", resolution=100.0, save_all=True)
                     self.log(f"  Pág {num_pagina} sin QR -> {os.path.basename(ruta_final)}", "ERROR")

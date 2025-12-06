@@ -12,12 +12,15 @@ from .procesamiento import PDFProcessor, ImageProcessor
 class MotorQR:
     """Motor principal para el procesamiento de archivos con códigos QR."""
     
-    def __init__(self, logger_callback=None):
+    def __init__(self, logger_callback=None, politica_duplicados="renombrar", 
+                 callback_pregunta=None):
         """
         Inicializa el motor QR.
         
         Args:
             logger_callback: Función para logging (opcional)
+            politica_duplicados: "renombrar", "preguntar", o "comparar"
+            callback_pregunta: Callback para diálogo de duplicados (solo si politica=="preguntar")
         """
         self.logger = logging.getLogger("QRMaster")
         self.stop_requested = False
@@ -25,14 +28,23 @@ class MotorQR:
             "procesados": 0,
             "exitosos": 0,
             "fallidos": 0,
-            "duplicados": 0
+            "duplicados": 0,
+            "saltados": 0
         }
         self.callback = logger_callback
+        self.politica_duplicados = politica_duplicados
+        self.callback_pregunta = callback_pregunta
         
-        # Crear procesadores (pasando referencia a stop_requested como lista para mutabilidad)
+        # Crear procesadores con política de duplicados
         self.stop_requested_ref = [False]
-        self.pdf_processor = PDFProcessor(self.stats, self.log, self.stop_requested_ref)
-        self.image_processor = ImageProcessor(self.stats, self.log, self.stop_requested_ref)
+        self.pdf_processor = PDFProcessor(
+            self.stats, self.log, self.stop_requested_ref,
+            politica_duplicados, callback_pregunta
+        )
+        self.image_processor = ImageProcessor(
+            self.stats, self.log, self.stop_requested_ref,
+            politica_duplicados, callback_pregunta
+        )
 
     def log(self, message, level="INFO"):
         """
@@ -68,7 +80,7 @@ class MotorQR:
         """
         self.stop_requested = False
         self.stop_requested_ref[0] = False
-        self.stats = {"procesados": 0, "exitosos": 0, "fallidos": 0, "duplicados": 0}
+        self.stats = {"procesados": 0, "exitosos": 0, "fallidos": 0, "duplicados": 0, "saltados": 0}
         
         # Actualizar stats reference en procesadores
         self.pdf_processor.stats = self.stats
